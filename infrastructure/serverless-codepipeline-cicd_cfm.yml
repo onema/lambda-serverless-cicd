@@ -1,0 +1,229 @@
+# Code pipeline for serverless applications
+AWSTemplateFormatVersion: '2010-09-09'
+
+Description: >
+  Template to create a multi-step code-pipeline to deploy Python 3.6 lambda functions
+  using the serverless framework.
+
+Parameters:
+  AppName:
+    Description: Name of the application
+    Type: String
+    
+  # GitHub settings
+  GitHubOwner:
+    Type: String
+    Description: GitHub repository owner
+  GitHubRepo:
+    Type: String
+    Description: GitHub repository name
+  GitHubBranch:
+    Type: String
+    Default: master
+    Description: GitHub repository branch
+  GitHubToken:
+    Type: String
+    NoEcho: true
+    Description: GitHub repository OAuth token
+    
+  # Environment Settings
+  ProductionEnvironemtnName:
+    Type: String
+    Default: production
+    Description: Environment name for Production
+  StagingEnvironmentName:
+    Type: String
+    Default: staging
+    Description: Environment name for Staging
+    
+  # Code build settings
+  CodeBuildComputeType:
+    Description: The build compute type
+    Type: String
+    Default: BUILD_GENERAL1_SMALL
+    AllowedValues:
+      - BUILD_GENERAL1_SMALL
+      - BUILD_GENERAL1_MEDIUM
+      - BUILD_GENERAL1_LARGE
+  CodeBuildDockerImage:
+    Description: The docker image to be used for code build  
+    Type: String
+    Default: onema/amazonlinux-numpy-lambda:1.13.3
+
+Resources:
+
+  # CODE BUILD RESOURCES
+  # Role required to deploy the lambda functions.
+  # NOTE: This role has admin access, lock down to fit your needs!
+  CodeBuildDeploymentRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${AppName}-code-build-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "codebuild.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess
+      # Example policy for a serverless deployment
+      # Policies:
+      #   - PolicyName: CodeBuildAccess
+      #     PolicyDocument:
+      #       Version: "2012-10-17"
+      #       Statement:
+      #         - Action:
+      #           - "s3:*"
+      #           - "lambda:*"
+      #           - "cloudformation:*"
+      #           - "apigateway:*"
+      #           - "iam:PassRole"
+      #           - "sns:Publish"
+      #           Effect: Allow
+      #           Resource: "*"
+
+  # Production environment
+  CodeBuildProduction:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub "${ProductionEnvironemtnName}-${AppName}-deployment"
+      Description: Production deployment of the serverless application
+      Artifacts:
+        Type: CODEPIPELINE
+      ServiceRole: !Ref CodeBuildDeploymentRole
+      Environment:
+        ComputeType: !Ref CodeBuildComputeType
+        EnvironmentVariables:
+          - Name: STAGE_NAME
+            Value: !Ref ProductionEnvironemtnName
+        Image: !Ref CodeBuildDockerImage
+        Type: LINUX_CONTAINER
+      Source:
+        Type: CODEPIPELINE
+  
+  # Staging environment
+  CodeBuildDevelop:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub "${StagingEnvironmentName}-${AppName}-deployment"
+      Description: Development deployment of the serverless application
+      Artifacts:
+        Type: CODEPIPELINE
+      ServiceRole: !Ref CodeBuildDeploymentRole
+      Environment:
+        ComputeType: !Ref CodeBuildComputeType
+        EnvironmentVariables:
+          - Name: STAGE_NAME
+            Value: !Ref StagingEnvironmentName
+        Image: !Ref CodeBuildDockerImage
+        Type: LINUX_CONTAINER
+      Source:
+        Type: CODEPIPELINE
+
+  # CODE PIPELINE RESOURCES
+  PipelineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${AppName}-code-pipeline-role"
+      AssumeRolePolicyDocument:
+        Statement:
+        - Action: ["sts:AssumeRole"]
+          Effect: Allow
+          Principal:
+            Service: [codepipeline.amazonaws.com]
+        Version: "2012-10-17"
+      Path: /
+      Policies:
+        - PolicyName: CodePipelineAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Action:
+                - "s3:*"
+                - "lambda:*"
+                - "codebuild:*"
+                - "iam:PassRole"
+                - "sns:Publish"
+                Effect: Allow
+                Resource: "*"
+
+  ArtifactsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${AppName}-code-pipeline-artifacts"
+      VersioningConfiguration:
+        Status: Enabled
+
+  Pipeline:
+      Type: AWS::CodePipeline::Pipeline
+      Properties:
+        ArtifactStore:
+          Location: !Ref ArtifactsBucket
+          Type: S3
+        DisableInboundStageTransitions: []
+        Name: !Sub "${AppName}-cicd-code-pipeline"
+        RoleArn: !GetAtt [PipelineRole, Arn]
+        Stages:
+          - Name: Source
+            Actions:
+             - Name: Source
+               InputArtifacts: []
+               ActionTypeId:
+                 Category: Source
+                 Owner: ThirdParty
+                 Provider: GitHub
+                 Version: 1
+               OutputArtifacts:
+                 - Name: AppSource
+               Configuration:
+                 Owner: !Ref GitHubOwner
+                 Repo: !Ref GitHubRepo
+                 Branch: !Ref GitHubBranch
+                 OAuthToken: !Ref GitHubToken
+               RunOrder: 1
+          - Name: BuildAndDeploy
+            Actions:
+              - Name: BuildDevelop
+                ActionTypeId:
+                  Category: Build
+                  Owner: AWS
+                  Provider: CodeBuild
+                  Version: 1
+                InputArtifacts:
+                  - Name: AppSource
+                OutputArtifacts:
+                  - Name: DevAppBuild
+                Configuration:
+                  ProjectName: !Ref CodeBuildDevelop
+                RunOrder: 1
+              - Name: ApproveDevelop
+                ActionTypeId:
+                  Category: Approval
+                  Owner: AWS
+                  Provider: Manual
+                  Version: 1
+                  # Create an SNS topic for notifications
+#                Configuration:
+#                  NotificationArn: !Ref CodePipelineSNSTopic
+#                  CustomData:
+#                    !Sub |
+#                      PLEASE TEST IN DEVELOP
+#                      Do you want to deploy to production?
+                RunOrder: 2
+              - Name: BuildProduction
+                ActionTypeId:
+                  Category: Build
+                  Owner: AWS
+                  Provider: CodeBuild
+                  Version: 1
+                InputArtifacts:
+                  - Name: AppSource
+                OutputArtifacts:
+                  - Name: ProductionAppBuild
+                Configuration:
+                  ProjectName: !Ref CodeBuildProduction
+                RunOrder: 3

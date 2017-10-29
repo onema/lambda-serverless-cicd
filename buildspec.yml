@@ -1,0 +1,16 @@
+version: 0.2
+
+phases:
+  install:
+    commands:
+      - npm install serverless -g
+  pre_build:
+    commands:
+      - chmod +x deploy.sh
+  build:
+    commands:
+      - echo "Stage Name = ${STAGE_NAME}"
+      - ./deploy.sh
+  post_build:
+    commands:
+      - rm -rf package*
