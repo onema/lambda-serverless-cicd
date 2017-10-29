@@ -14,10 +14,10 @@ Create the cloud formation stack and plug in the given parameters for your repos
 
 Copy the `buildspec.yml` and `deploy.sh` files to the root of your repository. 
 
-Your repo must contain a serverless.yml in the root of the project. 
+Your repo must contain a `serverless.yml` in the root of the project. 
 
 That's it! Every time you push something to master it will create/update the test stack. Once the stack has been tested, it can be approved. After approval the stack will deploy to the production stack. 
 
-Architecture
+Reference
 ============
-The CI/CD pipeline creates/updates a test stack 
+[Creating a GitHub OAuth token](https://help.github.com/articles/creating-a-personal-access-token-for-the-command-line/)
