@@ -6,7 +6,7 @@ Sampel AWS Code Pipeline using CodeBuild to deploy python 3.6 lambda functions u
 Requirements
 ============
 This project uses a custom docker image for Amazon linux 2017.09 with Python 3.6 pre-installed and nodejs 8.8.1.
-See [DockerHub](https://hub.docker.com/r/onema/amazonlinux-numpy-lambda/) for more information.
+See [DockerHub](https://hub.docker.com/r/onema/amazonlinux4lambda/) for more information.
 
 Usage
 =====
