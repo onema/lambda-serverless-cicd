@@ -48,7 +48,7 @@ Parameters:
   CodeBuildDockerImage:
     Description: The docker image to be used for code build  
     Type: String
-    Default: onema/amazonlinux-numpy-lambda:1.13.3
+    Default: onema/amazonlinux4lambda:1.13.3
 
 Resources:
 
