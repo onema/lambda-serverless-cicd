@@ -6,6 +6,7 @@ Description: >
   using the serverless framework.
 
 Parameters:
+  # General App settings
   AppName:
     Description: Name of the application
     Type: String
@@ -26,8 +27,8 @@ Parameters:
     NoEcho: true
     Description: GitHub repository OAuth token
     
-  # Environment Settings
-  ProductionEnvironemtnName:
+  # Environment settings
+  ProductionEnvironmentName:
     Type: String
     Default: production
     Description: Environment name for Production
@@ -90,7 +91,7 @@ Resources:
   CodeBuildProduction:
     Type: AWS::CodeBuild::Project
     Properties:
-      Name: !Sub "${ProductionEnvironemtnName}-${AppName}-deployment"
+      Name: !Sub "${ProductionEnvironmentName}-${AppName}-deployment"
       Description: Production deployment of the serverless application
       Artifacts:
         Type: CODEPIPELINE
@@ -99,7 +100,7 @@ Resources:
         ComputeType: !Ref CodeBuildComputeType
         EnvironmentVariables:
           - Name: STAGE_NAME
-            Value: !Ref ProductionEnvironemtnName
+            Value: !Ref ProductionEnvironmentName
         Image: !Ref CodeBuildDockerImage
         Type: LINUX_CONTAINER
       Source:
