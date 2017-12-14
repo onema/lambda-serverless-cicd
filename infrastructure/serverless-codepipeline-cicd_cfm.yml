@@ -158,72 +158,78 @@ Resources:
       VersioningConfiguration:
         Status: Enabled
 
+  CodePipelineSNSTopic:
+    Type: "AWS::SNS::Topic"
+    Properties: 
+      DisplayName: code-pipeline-notifications
+      TopicName: code-pipeline-notifications
+
   Pipeline:
-      Type: AWS::CodePipeline::Pipeline
-      Properties:
-        ArtifactStore:
-          Location: !Ref ArtifactsBucket
-          Type: S3
-        DisableInboundStageTransitions: []
-        Name: !Sub "${AppName}-cicd-code-pipeline"
-        RoleArn: !GetAtt [PipelineRole, Arn]
-        Stages:
-          - Name: Source
-            Actions:
-             - Name: Source
-               InputArtifacts: []
-               ActionTypeId:
-                 Category: Source
-                 Owner: ThirdParty
-                 Provider: GitHub
-                 Version: 1
-               OutputArtifacts:
-                 - Name: AppSource
-               Configuration:
-                 Owner: !Ref GitHubOwner
-                 Repo: !Ref GitHubRepo
-                 Branch: !Ref GitHubBranch
-                 OAuthToken: !Ref GitHubToken
-               RunOrder: 1
-          - Name: BuildAndDeploy
-            Actions:
-              - Name: BuildDevelop
-                ActionTypeId:
-                  Category: Build
-                  Owner: AWS
-                  Provider: CodeBuild
-                  Version: 1
-                InputArtifacts:
-                  - Name: AppSource
-                OutputArtifacts:
-                  - Name: DevAppBuild
-                Configuration:
-                  ProjectName: !Ref CodeBuildDevelop
-                RunOrder: 1
-              - Name: ApproveDevelop
-                ActionTypeId:
-                  Category: Approval
-                  Owner: AWS
-                  Provider: Manual
-                  Version: 1
-                  # Create an SNS topic for notifications
-#                Configuration:
-#                  NotificationArn: !Ref CodePipelineSNSTopic
-#                  CustomData:
-#                    !Sub |
-#                      PLEASE TEST IN DEVELOP
-#                      Do you want to deploy to production?
-                RunOrder: 2
-              - Name: BuildProduction
-                ActionTypeId:
-                  Category: Build
-                  Owner: AWS
-                  Provider: CodeBuild
-                  Version: 1
-                InputArtifacts:
-                  - Name: AppSource
-                OutputArtifacts:
-                  - Name: ProductionAppBuild
-                Configuration:
-                  ProjectName: !Ref CodeBuildProduction
-                RunOrder: 3
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      ArtifactStore:
+        Location: !Ref ArtifactsBucket
+        Type: S3
+      DisableInboundStageTransitions: []
+      Name: !Sub "${AppName}-cicd-code-pipeline"
+      RoleArn: !GetAtt [PipelineRole, Arn]
+      Stages:
+        - Name: Source
+          Actions:
+           - Name: Source
+             InputArtifacts: []
+             ActionTypeId:
+               Category: Source
+               Owner: ThirdParty
+               Provider: GitHub
+               Version: 1
+             OutputArtifacts:
+               - Name: AppSource
+             Configuration:
+               Owner: !Ref GitHubOwner
+               Repo: !Ref GitHubRepo
+               Branch: !Ref GitHubBranch
+               OAuthToken: !Ref GitHubToken
+             RunOrder: 1
+        - Name: Build
+          Actions:
+            - Name: BuildDevelop
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: 1
+              InputArtifacts:
+                - Name: AppSource
+              OutputArtifacts:
+                - Name: DevAppBuild
+              Configuration:
+                ProjectName: !Ref CodeBuildDevelop
+              RunOrder: 1
+            - Name: ApproveDevelop
+              ActionTypeId:
+                Category: Approval
+                Owner: AWS
+                Provider: Manual
+                Version: 1
+              # Create an SNS topic for notifications
+              Configuration:
+                NotificationArn: !Ref CodePipelineSNSTopic
+                CustomData:
+                  !Sub |
+                    PLEASE TEST IN DEVELOP
+                    Do you want to deploy to production?
+              RunOrder: 2
+            - Name: BuildProduction
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: 1
+              InputArtifacts:
+                - Name: AppSource
+              OutputArtifacts:
+                - Name: ProductionAppBuild
+              Configuration:
+                ProjectName: !Ref CodeBuildProduction
+              RunOrder: 3
